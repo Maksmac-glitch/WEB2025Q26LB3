@@ -194,6 +194,47 @@ body{
     justify-content:flex-end
 }
 
+.cell{
+    border-radius:.75rem;
+    background:#0b1324
+}
+.tiles{
+    position:absolute;
+    inset:10px;
+    pointer-events:none
+}
+
+.tile{
+  position:absolute;
+  display:grid;
+  place-items:center;
+  border-radius:.75rem;
+  font-weight:800;
+  color:#0a1220;
+  transform:translate(var(--x,0px), var(--y,0px)) scale(1);
+  transition:transform .14s ease, background-color .14s ease, color .14s ease;
+  will-change:transform;
+}
+.tile.spawn{animation:pop .14s ease}
+@keyframes pop{
+  from{ transform: translate(var(--x,0px), var(--y,0px)) scale(.4) }
+  to{   transform: translate(var(--x,0px), var(--y,0px)) scale(1) }
+}
+.tile.v2{background:#e2f3ff}
+.tile.v4{background:#cfe9ff}
+.tile.v8{background:#fbd38d}
+.tile.v16{background:#f6ad55}
+.tile.v32{background:#fc8181}
+.tile.v64{background:#f56565}
+.tile.v128{background:#68d391}
+.tile.v256{background:#48bb78}
+.tile.v512{background:#38a169}
+.tile.v1024{background:#22c55e}
+.tile.v2048{background:#16a34a;color:#04100a}
+.tile.v4096{background:#0ea5e9}
+.tile.v8192{background:#0284c7}
+
+
 @media (max-width: 860px){
   .wrap{grid-template-columns:1fr}
   .side{order:2}
