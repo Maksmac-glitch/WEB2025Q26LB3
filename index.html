@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>2048-ЛР3</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="head">
+    <h1>2048</h1>
+    <div class="scorebar">
+      <div class="score">
+        <span class="label">Очки</span>
+        <span id="score">0</span>
+      </div>
+      <div class="score">
+        <span class="label">Рекорд</span>
+        <span id="best">0</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="main">
+      <div id="board" class="board" aria-label="Игровое поле 2048">
+        <div id="tiles" class="tiles"></div>
+      </div>
+      <div class="controls">
+        <button id="new-game" class="btn primary">Новая игра</button>
+        <button id="undo" class="btn ghost" disabled>Отменить ход</button>
+        <small class="hint">Стрелки / WASD / свайп</small>
+      </div>
+    </section>
+
+    <aside class="side">
+      <h2>Лидеры (Top-10)</h2>
+      <ul id="leaders" class="leaders"></ul>
+      <small class="muted">Данные хранятся локально</small>
+    </aside>
+  </main>
+
+  <div id="name-modal" class="dialog hide" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="dialog-box">
+      <h3 id="modal-title">Игра окончена</h3>
+      <p>Ваш счёт: <strong id="final-score">0</strong></p>
+      <form id="name-form" class="form">
+        <label class="field">
+          <span>Имя для таблицы лидеров</span>
+          <input id="player-name" name="playerName" type="text" maxlength="24" placeholder="Игрок" required />
+        </label>
+        <div class="actions">
+          <button type="submit" class="btn primary">Сохранить</button>
+          <button type="button" id="skip-save" class="btn ghost">Пропустить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
