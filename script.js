@@ -18,10 +18,12 @@ function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(
 let board = makeEmptyBoard();
 let score = 0;
 let best = Number(localStorage.getItem(KEY_BEST) || 0);
+const undoStack = [];
 
 const boardEl = document.getElementById("board");
 const tilesLayer = document.getElementById("tiles");
 const btnNew = document.getElementById("new-game");
+const btnUndo = document.getElementById("undo");
 const scoreEl = document.getElementById("score");
 const bestEl = document.getElementById("best");
 
@@ -160,13 +162,17 @@ function finishGame(){
 }
 function closeModal(){ modal.classList.add("hide"); }
 
+function pushUndo(){ undoStack.push({ b: cloneBoard(board), s: score }); if (undoStack.length>30) undoStack.shift(); btnUndo.disabled=false; }
+function undo(){ if(!undoStack.length) return; const prev=undoStack.pop(); board=prev.b; score=prev.s; btnUndo.disabled=undoStack.length===0; renderTiles(); renderScore(); }
+
 function newGame(){
-  board = makeEmptyBoard(); score = 0;
+  board = makeEmptyBoard(); score = 0; undoStack.length=0; btnUndo.disabled=true;
   spawnRandom(board); spawnRandom(board);
   renderTiles(); renderScore();
 }
 function handleMove(dir){
-  if (!moveWithMerge(dir)) return;
+  pushUndo();
+  if (!moveWithMerge(dir)) { undoStack.pop(); btnUndo.disabled=undoStack.length===0; return; }
   if (score > best) { best = score; localStorage.setItem(KEY_BEST, String(best)); }
   spawnRandom(board); renderTiles(); renderScore();
   if (!canMove(board)) setTimeout(finishGame, 80);
@@ -180,6 +186,7 @@ window.addEventListener("keydown", (e) => {
   else if (k==='arrowdown'||k==='s') handleMove('down');
 });
 btnNew.addEventListener("click", newGame);
+btnUndo.addEventListener("click", undo);
 
 nameForm.addEventListener("submit",(e)=>{ e.preventDefault(); saveLeader((playerNameInput.value||"").trim()||"Игрок",score); closeModal(); newGame(); });
 skipSaveBtn.addEventListener("click",()=>{ closeModal(); newGame(); });
