@@ -1,4 +1,5 @@
 const SIZE = 4;
+const KEY_BEST = "lb3-2048-best";
 
 function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);
@@ -8,19 +9,20 @@ function el(tag, props = {}, ...children) {
     else if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2), v);
     else node.setAttribute(k, v);
   }
-  for (const ch of children.flat()) {
-    if (ch == null) continue;
-    node.appendChild(typeof ch === "string" ? document.createTextNode(ch) : ch);
-  }
+  for (const ch of children.flat()) { if (ch == null) continue; node.appendChild(typeof ch === "string" ? document.createTextNode(ch) : ch); }
   return node;
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2); }
 
 let board = makeEmptyBoard();
+let score = 0;
+let best = Number(localStorage.getItem(KEY_BEST) || 0);
 
 const boardEl = document.getElementById("board");
 const tilesLayer = document.getElementById("tiles");
 const btnNew = document.getElementById("new-game");
+const scoreEl = document.getElementById("score");
+const bestEl = document.getElementById("best");
 
 function buildGrid() {
   if (tilesLayer.parentElement !== boardEl) boardEl.appendChild(tilesLayer);
@@ -74,6 +76,7 @@ function renderTiles(){
   }
   for (const id of seen) { const n = tileDom.get(id); if (n) n.remove(); tileDom.delete(id); }
 }
+function renderScore(){ scoreEl.textContent = String(score); bestEl.textContent = String(best); }
 
 function getLine(b, dir, i){
   return (dir==='left'||dir==='right') ? b[i].slice() : b.map(r=>r[i]);
@@ -82,33 +85,44 @@ function setLine(b, dir, i, line){
   if (dir==='left'||dir==='right') b[i] = line.slice();
   else for(let r=0;r<SIZE;r++) b[r][i] = line[r];
 }
-function compact(line){
+function mergeLine(line){
   const arr = line.filter(Boolean);
-  while (arr.length < SIZE) arr.push(null);
-  return arr;
+  const out = [];
+  for (let i=0;i<arr.length;i++){
+    const a = arr[i];
+    if (i+1 < arr.length && arr[i+1].v === a.v){
+      const nv = a.v*2;
+      out.push({ id: uid(), v: nv });
+      score += nv;
+      i++;
+    } else out.push({ id:a.id, v:a.v });
+  }
+  while (out.length < SIZE) out.push(null);
+  return out;
 }
-function moveSimple(dir){
+function moveWithMerge(dir){
   let changed = false;
   for (let i=0;i<SIZE;i++){
     let line = getLine(board, dir, i);
     const rev = (dir==='right'||dir==='down');
     if (rev) line.reverse();
-    const next = compact(line);
+    const next = mergeLine(line);
     if (rev) next.reverse();
-    for (let j=0;j<SIZE;j++) if ((line[j]?.id)!==(next[j]?.id)) { changed = true; break; }
+    for (let j=0;j<SIZE;j++) if ((line[j]?.id)!==(next[j]?.id) || (line[j]?.v)!==(next[j]?.v)) { changed = true; break; }
     setLine(board, dir, i, next);
   }
   return changed;
 }
 
 function newGame(){
-  board = makeEmptyBoard();
+  board = makeEmptyBoard(); score = 0;
   spawnRandom(board); spawnRandom(board);
-  renderTiles();
+  renderTiles(); renderScore();
 }
 function handleMove(dir){
-  if (!moveSimple(dir)) return;
-  spawnRandom(board); renderTiles();
+  if (!moveWithMerge(dir)) return;
+  if (score > best) { best = score; localStorage.setItem(KEY_BEST, String(best)); }
+  spawnRandom(board); renderTiles(); renderScore();
 }
 
 window.addEventListener("keydown", (e) => {
@@ -121,4 +135,5 @@ window.addEventListener("keydown", (e) => {
 btnNew.addEventListener("click", newGame);
 
 buildGrid();
+bestEl.textContent = String(best);
 newGame();
