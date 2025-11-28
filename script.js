@@ -1,5 +1,6 @@
 const SIZE = 4;
 const KEY_BEST = "lb3-2048-best";
+const KEY_LEADERS = "lb3-2048-leaders";
 
 function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);
@@ -24,6 +25,13 @@ const btnNew = document.getElementById("new-game");
 const scoreEl = document.getElementById("score");
 const bestEl = document.getElementById("best");
 
+const modal = document.getElementById("name-modal");
+const finalScoreEl = document.getElementById("final-score");
+const nameForm = document.getElementById("name-form");
+const playerNameInput = document.getElementById("player-name");
+const skipSaveBtn = document.getElementById("skip-save");
+const leadersEl = document.getElementById("leaders");
+
 function buildGrid() {
   if (tilesLayer.parentElement !== boardEl) boardEl.appendChild(tilesLayer);
   boardEl.querySelectorAll(".cell").forEach(n => n.remove());
@@ -32,6 +40,7 @@ function buildGrid() {
 }
 
 function makeEmptyBoard(){ return Array.from({length: SIZE}, () => Array(SIZE).fill(null)); }
+function cloneBoard(b){ return b.map(row => row.map(t => t ? {...t} : null)); }
 function randomEmptyCell(b){
   const empty = [];
   for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(!b[r][c]) empty.push([r,c]);
@@ -75,6 +84,7 @@ function renderTiles(){
     seen.delete(t.id);
   }
   for (const id of seen) { const n = tileDom.get(id); if (n) n.remove(); tileDom.delete(id); }
+  renderScore();
 }
 function renderScore(){ scoreEl.textContent = String(score); bestEl.textContent = String(best); }
 
@@ -113,6 +123,42 @@ function moveWithMerge(dir){
   }
   return changed;
 }
+function canMove(b){
+  for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(!b[r][c]) return true;
+  for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++){
+    const t=b[r][c]; if(!t) continue;
+    if(r+1<SIZE && b[r+1][c] && b[r+1][c].v===t.v) return true;
+    if(c+1<SIZE && b[r][c+1] && b[r][c+1].v===t.v) return true;
+  }
+  return false;
+}
+
+function loadLeaders(){ try{ const raw=localStorage.getItem(KEY_LEADERS); const arr=raw?JSON.parse(raw):[]; return Array.isArray(arr)?arr:[]; }catch{ return []; } }
+function saveLeader(name, points){
+  const arr=loadLeaders();
+  arr.push({ name:String(name||"Игрок").slice(0,24), score:Number(points)||0, ts:Date.now() });
+  arr.sort((a,b)=> b.score-a.score || a.ts-b.ts);
+  localStorage.setItem(KEY_LEADERS, JSON.stringify(arr.slice(0,10)));
+  renderLeaders();
+}
+function renderLeaders(){
+  while (leadersEl.firstChild) leadersEl.removeChild(leadersEl.firstChild);
+  loadLeaders().slice(0,10).forEach((rec, idx) => {
+    const li = el("li");
+    const name = el("span", { className:"name", text: `${idx+1}. ${rec.name}` });
+    const pts  = el("span", { className:"pts",  text: String(rec.score) });
+    li.append(name, pts);
+    leadersEl.appendChild(li);
+  });
+}
+
+function finishGame(){
+  finalScoreEl.textContent = String(score);
+  playerNameInput.value = "";
+  modal.classList.remove("hide");
+  playerNameInput.focus();
+}
+function closeModal(){ modal.classList.add("hide"); }
 
 function newGame(){
   board = makeEmptyBoard(); score = 0;
@@ -123,6 +169,7 @@ function handleMove(dir){
   if (!moveWithMerge(dir)) return;
   if (score > best) { best = score; localStorage.setItem(KEY_BEST, String(best)); }
   spawnRandom(board); renderTiles(); renderScore();
+  if (!canMove(board)) setTimeout(finishGame, 80);
 }
 
 window.addEventListener("keydown", (e) => {
@@ -134,6 +181,10 @@ window.addEventListener("keydown", (e) => {
 });
 btnNew.addEventListener("click", newGame);
 
+nameForm.addEventListener("submit",(e)=>{ e.preventDefault(); saveLeader((playerNameInput.value||"").trim()||"Игрок",score); closeModal(); newGame(); });
+skipSaveBtn.addEventListener("click",()=>{ closeModal(); newGame(); });
+
 buildGrid();
+renderLeaders();
 bestEl.textContent = String(best);
 newGame();
