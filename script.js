@@ -40,7 +40,6 @@ function buildGrid() {
   for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++)
     boardEl.insertBefore(el("div",{className:"cell","data-row":String(r),"data-col":String(c)}), tilesLayer);
 }
-
 function makeEmptyBoard(){ return Array.from({length: SIZE}, () => Array(SIZE).fill(null)); }
 function cloneBoard(b){ return b.map(row => row.map(t => t ? {...t} : null)); }
 function randomEmptyCell(b){
@@ -62,7 +61,10 @@ function metrics(){
   const size = (inner - gap*(SIZE-1)) / SIZE;
   return { gap, size };
 }
+function xyFor(r,c){ const {gap,size}=metrics(); return { x:c*(size+gap), y:r*(size+gap), size }; }
+
 const tileDom = new Map();
+let animating = false;
 function renderTiles(){
   const { gap, size } = metrics();
   const seen = new Set(tileDom.keys());
@@ -71,21 +73,23 @@ function renderTiles(){
     const x = c * (size + gap), y = r * (size + gap);
     let node = tileDom.get(t.id);
     if (!node) {
+      if (animating) continue;
       node = el("div", { className: "tile v"+t.v });
       node.style.width = size + "px"; node.style.height = size + "px";
       node.style.setProperty("--x", x + "px"); node.style.setProperty("--y", y + "px");
       node.textContent = String(t.v);
       tilesLayer.appendChild(node);
-      node.classList.add("spawn"); setTimeout(() => node.classList.remove("spawn"), 160);
+      node.classList.add(t.merge ? "merge" : "spawn"); setTimeout(() => node.classList.remove("merge","spawn"), 180);
       tileDom.set(t.id, node);
     } else {
       node.style.width = size + "px"; node.style.height = size + "px";
       node.style.setProperty("--x", x + "px"); node.style.setProperty("--y", y + "px");
       node.className = "tile v"+t.v; node.textContent = String(t.v);
     }
+    if (t.merge) t.merge = false;
     seen.delete(t.id);
   }
-  for (const id of seen) { const n = tileDom.get(id); if (n) n.remove(); tileDom.delete(id); }
+  if (!animating) for (const id of seen) { const n = tileDom.get(id); if (n) n.remove(); tileDom.delete(id); }
   renderScore();
 }
 function renderScore(){ scoreEl.textContent = String(score); bestEl.textContent = String(best); }
@@ -97,33 +101,37 @@ function setLine(b, dir, i, line){
   if (dir==='left'||dir==='right') b[i] = line.slice();
   else for(let r=0;r<SIZE;r++) b[r][i] = line[r];
 }
-function mergeLine(line){
-  const arr = line.filter(Boolean);
-  const out = [];
-  for (let i=0;i<arr.length;i++){
-    const a = arr[i];
-    if (i+1 < arr.length && arr[i+1].v === a.v){
-      const nv = a.v*2;
-      out.push({ id: uid(), v: nv });
-      score += nv;
-      i++;
-    } else out.push({ id:a.id, v:a.v });
-  }
-  while (out.length < SIZE) out.push(null);
-  return out;
-}
-function moveWithMerge(dir){
-  let changed = false;
+
+function moveWithPlan(b, dir){
+  const plan = []; let gained = 0;
+  const seq = (i)=> dir==="left" ? Array.from({length:SIZE},(_,j)=>[i,j])
+    : dir==="right" ? Array.from({length:SIZE},(_,j)=>[i,SIZE-1-j])
+    : dir==="up" ? Array.from({length:SIZE},(_,j)=>[j,i])
+    : Array.from({length:SIZE},(_,j)=>[SIZE-1-j,i]);
+
   for (let i=0;i<SIZE;i++){
-    let line = getLine(board, dir, i);
-    const rev = (dir==='right'||dir==='down');
-    if (rev) line.reverse();
-    const next = mergeLine(line);
-    if (rev) next.reverse();
-    for (let j=0;j<SIZE;j++) if ((line[j]?.id)!==(next[j]?.id) || (line[j]?.v)!==(next[j]?.v)) { changed = true; break; }
-    setLine(board, dir, i, next);
+    const coords = seq(i), tiles = [];
+    for (const [r,c] of coords) if (b[r][c]) tiles.push({ t:b[r][c], r, c });
+    const out = Array(SIZE).fill(null); let w=0, k=0;
+    while (k < tiles.length){
+      const a = tiles[k]; const hasB = k+1<tiles.length && tiles[k+1].t.v===a.t.v;
+      const [wr,wc] = coords[w];
+      if (hasB){
+        const b2 = tiles[k+1]; const nv = a.t.v*2;
+        out[w] = { id: uid(), v: nv, merge:true }; gained += nv;
+        plan.push({ id:a.t.id, from:[a.r,a.c], to:[wr,wc], remove:true });
+        plan.push({ id:b2.t.id, from:[b2.r,b2.c], to:[wr,wc], remove:true });
+        w++; k+=2;
+      } else {
+        out[w] = { id:a.t.id, v:a.t.v };
+        plan.push({ id:a.t.id, from:[a.r,a.c], to:[wr,wc], remove:false });
+        w++; k+=1;
+      }
+    }
+    for (let j=0;j<SIZE;j++){ const [r,c]=coords[j]; b[r][c]=out[j]; }
   }
-  return changed;
+  const moved = plan.some(m => m.from[0]!==m.to[0] || m.from[1]!==m.to[1] || m.remove);
+  return { moved, gained, plan };
 }
 function canMove(b){
   for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(!b[r][c]) return true;
@@ -133,6 +141,24 @@ function canMove(b){
     if(c+1<SIZE && b[r][c+1] && b[r][c+1].v===t.v) return true;
   }
   return false;
+}
+function animatePlan(plan, done){
+  animating = true;
+  const updates = [];
+  for (const m of plan){
+    const n = tileDom.get(m.id); if (!n) continue;
+    const { x,y,size } = xyFor(m.to[0], m.to[1]);
+    n.style.width = size + "px"; n.style.height = size + "px";
+    n.style.setProperty("--x", x + "px"); n.style.setProperty("--y", y + "px");
+    updates.push({ node:n, remove:m.remove });
+  }
+  setTimeout(() => {
+    for (const u of updates) if (u.remove){
+      if (u.node.parentNode) u.node.parentNode.removeChild(u.node);
+      for (const [id, el] of tileDom.entries()) if (el===u.node) tileDom.delete(id);
+    }
+    animating = false; done();
+  }, 180);
 }
 
 function loadLeaders(){ try{ const raw=localStorage.getItem(KEY_LEADERS); const arr=raw?JSON.parse(raw):[]; return Array.isArray(arr)?arr:[]; }catch{ return []; } }
@@ -172,10 +198,14 @@ function newGame(){
 }
 function handleMove(dir){
   pushUndo();
-  if (!moveWithMerge(dir)) { undoStack.pop(); btnUndo.disabled=undoStack.length===0; return; }
-  if (score > best) { best = score; localStorage.setItem(KEY_BEST, String(best)); }
-  spawnRandom(board); renderTiles(); renderScore();
-  if (!canMove(board)) setTimeout(finishGame, 80);
+  const res = moveWithPlan(board, dir);
+  if (!res.moved) { undoStack.pop(); btnUndo.disabled=undoStack.length===0; return; }
+  animatePlan(res.plan, () => {
+    score += res.gained;
+    if (score > best) { best = score; localStorage.setItem(KEY_BEST, String(best)); }
+    spawnRandom(board); renderTiles(); renderScore();
+    if (!canMove(board)) setTimeout(finishGame, 80);
+  });
 }
 
 window.addEventListener("keydown", (e) => {
@@ -195,3 +225,4 @@ buildGrid();
 renderLeaders();
 bestEl.textContent = String(best);
 newGame();
+renderScore();
