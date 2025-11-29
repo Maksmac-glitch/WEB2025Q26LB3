@@ -218,6 +218,14 @@ window.addEventListener("keydown", (e) => {
 btnNew.addEventListener("click", newGame);
 btnUndo.addEventListener("click", undo);
 
+let sx = 0, sy = 0;
+boardEl.addEventListener("touchstart", (e) => { const t=e.touches[0]; sx=t.clientX; sy=t.clientY; }, { passive:true });
+boardEl.addEventListener("touchend", (e) => {
+  const t=e.changedTouches[0]; const dx=t.clientX-sx, dy=t.clientY-sy;
+  const ax=Math.abs(dx), ay=Math.abs(dy); if (Math.max(ax,ay)<24) return;
+  if (ax>ay) handleMove(dx>0?'right':'left'); else handleMove(dy>0?'down':'up');
+});
+
 nameForm.addEventListener("submit",(e)=>{ e.preventDefault(); saveLeader((playerNameInput.value||"").trim()||"Игрок",score); closeModal(); newGame(); });
 skipSaveBtn.addEventListener("click",()=>{ closeModal(); newGame(); });
 
