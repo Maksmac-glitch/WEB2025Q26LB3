@@ -169,16 +169,32 @@ function saveLeader(name, points){
   localStorage.setItem(KEY_LEADERS, JSON.stringify(arr.slice(0,10)));
   renderLeaders();
 }
+function formatTs(ts){
+  const d = new Date(Number(ts || Date.now()));
+  // 31.12.2025 23:59
+  return d.toLocaleString('ru-RU', {
+    year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit'
+  }).replace(',', '');
+}
+
 function renderLeaders(){
   while (leadersEl.firstChild) leadersEl.removeChild(leadersEl.firstChild);
+
   loadLeaders().slice(0,10).forEach((rec, idx) => {
-    const li = el("li");
-    const name = el("span", { className:"name", text: `${idx+1}. ${rec.name}` });
-    const pts  = el("span", { className:"pts",  text: String(rec.score) });
-    li.append(name, pts);
+    const li   = el("li", { className: "lead-item" });
+
+    const rank = el("span", { className: "rank", text: `${idx+1}.` });
+    const name = el("span", { className: "name", text: rec.name });
+    const pts  = el("span", { className: "pts",  text: String(rec.score) });
+    const when = el("span", { className: "date", text: formatTs(rec.ts) });
+
+    li.append(rank, name, pts, when);
     leadersEl.appendChild(li);
   });
 }
+
+
 
 function finishGame(){
   finalScoreEl.textContent = String(score);
